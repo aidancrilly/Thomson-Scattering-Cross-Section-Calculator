@@ -1,6 +1,5 @@
 import jax.numpy as jnp
 import jax
-import functools as ft
 from .OTSconstants import *
 from .tools.Faddeeva import *
 from .tools.CauchyPV import KellerWrobel_PV
@@ -30,6 +29,7 @@ def plaZim(z):
     return val
 
 # Custom plasma dispersion function
+@jax.jit
 def custZprime(v, dfdv, f_params, maxv, integration_scale = 1.1):  
 
     # Adjust integration range
@@ -110,6 +110,7 @@ def chith_i(kw_dict,Te,Ti,Z,Ai,vi):
 #inputs: 
 #    kw_dict = dictionary of pre-computed scattering parameters
 #    dists = distributin functions  ####################################### todo label how
+@jax.jit
 def chicust_i(kw_dict,dists):
     omgpi = kw_dict['omgpi']
     k     = kw_dict['k']
@@ -123,6 +124,7 @@ def chicust_i(kw_dict,dists):
     return chiEre+chiEim
 
 #chi e
+@jax.jit
 def chicust_e(kw_dict,dists):
     omgpe = kw_dict['omgpe']
     k     = kw_dict['k']

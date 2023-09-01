@@ -49,7 +49,7 @@ def skw(omg,sa,omgL,Te,Ti,Z,Ai,ne,ve,vi):
 #    ne = electron density [cm^-3]
 #    ve=electron velocity [c]
 #    dist [1/c] distribution function of ions, at phase velocity omg/k
-# @jax.jit
+@jax.jit
 def skwic(omg,sa,omgL,Te,Z,Ai,ne,ve,dists):
     kw_dict = get_kw_vals(omg,omgL,sa,Z,Ai,ne)
     k = kw_dict['k']

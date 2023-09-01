@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from .OTSconstants import *
+from jax.tree_util import Partial
 
 def d_distfunc_dv(dist_func,Nparams):
     in_axes_tuple = (0,) + (None,)*Nparams
@@ -10,7 +11,7 @@ def d_distfunc_dv(dist_func,Nparams):
 def create_dist_func_dict(dist_func,*_params):
     Nparams = len(_params)
     graddfdv = d_distfunc_dv(dist_func,Nparams)
-    dists = {'fi' : dist_func, 'dfi/dv' : graddfdv, 'fi_params' : [*_params]}
+    dists = {'fi' : Partial(dist_func), 'dfi/dv' : Partial(graddfdv), 'fi_params' : [*_params]}
     return dists
 
 def get_kw_vals(omg,omgL,sa,Z,Ai,ne):

@@ -3,6 +3,10 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial
 
+relative_tolerance = 1e-3
+absolute_tolerance = 1e-3
+divmax = 16
+
 #########################################################################
 # Following Patrick Kidger in https://github.com/google/jax/issues/9014 #
 #########################################################################
@@ -64,7 +68,7 @@ def _GLQ_control_loop(input_dict):
     # Reset values to avoid triggering convergence criteria
     input_dict['integral_1'] = 1e30
     input_dict['integral_2'] = 0.0
-    input_dict['trans_const_2'] = 100.0*input_dict['min_bin_width']/input_dict['tolerance']
+    input_dict['trans_const_2'] = 100.0*input_dict['min_bin_width']/input_dict['relative_tolerance']
 
     # Calculate the GL quadaratures until convergence is reached.
     input_dict = jax.lax.while_loop(_GLQ_convergence_cond,_GLQ_main_loop,input_dict)
@@ -77,13 +81,15 @@ def _GLQ_control_loop(input_dict):
 def _GLQ_convergence_cond(input_dict):
     integral_1 = input_dict['integral_1']
     integral_2 = input_dict['integral_2']
-    tolerance = input_dict['tolerance']
+    rtol = input_dict['relative_tolerance']
+    atol = input_dict['absolute_tolerance']
     min_bin_width = input_dict['min_bin_width']
     trans_const_2 = input_dict['trans_const_2']
 
     # Test to see if the integral has converged. This is determined by requiring that the difference between the to estimates of
     # the integral is smaller than their mean value multiplied by the tolerance set by the user.
-    cond1_val = jnp.where(jnp.abs(integral_2 - integral_1) <= tolerance * 0.5e0 * jnp.abs(integral_1 + integral_2),True,False)
+    rtol_target = rtol * 0.5e0 * jnp.abs(integral_1 + integral_2)
+    cond1_val = jnp.where(jnp.abs(integral_2 - integral_1) <= jnp.max(jnp.array([atol,rtol_target])),True,False)
 
     # If the current sub-interval is smaller than minimum interval width then exit the loop.
     cond2_val = jnp.where(2.0e0 * trans_const_2 < min_bin_width,True,False)
@@ -108,7 +114,7 @@ def _GLQ_main_loop(input_dict):
     input_dict['integral_2'] = input_dict['trans_const_2'] * input_dict['integral_2']
 
     # Set the new upper bound to the mid point of the current sub-interval.
-    input_dict['new_upper_bound'] = jnp.where(jnp.abs(input_dict['integral_2'] - input_dict['integral_1']) <= input_dict['tolerance'] * 0.5e0 * jnp.abs(input_dict['integral_1'] + input_dict['integral_2']),
+    input_dict['new_upper_bound'] = jnp.where(jnp.abs(input_dict['integral_2'] - input_dict['integral_1']) <= input_dict['relative_tolerance'] * 0.5e0 * jnp.abs(input_dict['integral_1'] + input_dict['integral_2']),
                                               input_dict['new_upper_bound'],
                                               input_dict['trans_const_1'])
 
@@ -134,7 +140,7 @@ def _GLQ_16point_loop(i,input_dict):
                                                         f(trans_const_1 - trans_const_2 * const_GLQ_points[i], *parameters))
     return input_dict
 
-def GLQ_adaptive_integral(integrand_function, lower_bound, upper_bound, parameters, tolerance = 1e-4, divmax = 16):
+def GLQ_adaptive_integral(integrand_function, lower_bound, upper_bound, parameters):
 
     # Create PyTree of required variables
     min_bin_width = (upper_bound - lower_bound)/divmax
@@ -142,7 +148,8 @@ def GLQ_adaptive_integral(integrand_function, lower_bound, upper_bound, paramete
     partial_f = Partial(integrand_function)
 
     input_dict = {'integral' : 0.0, 'lower_bound' : lower_bound, 'upper_bound' : upper_bound,
-             'integrand_function' : partial_f, 'parameters' : parameters, 'tolerance' : tolerance,
+             'integrand_function' : partial_f, 'parameters' : parameters, 
+             'relative_tolerance' : relative_tolerance, 'absolute_tolerance' : absolute_tolerance, 
              'new_lower_bound' : 0.0, 'new_upper_bound' : 1.0*lower_bound, 'min_bin_width': min_bin_width,
              'trans_const_1' : 0.0, 'trans_const_2' : 0.0, 'integral_1' : 0.0, 'integral_2' : 0.0}
 
