@@ -3,9 +3,9 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial
 
-relative_tolerance = 1e-3
+relative_tolerance = 1e-4
 absolute_tolerance = 0.0
-divmax = 16
+divmax = 32
 
 #########################################################################
 # Following Patrick Kidger in https://github.com/google/jax/issues/9014 #
