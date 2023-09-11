@@ -6,12 +6,13 @@ from jax.tree_util import Partial
 def d_distfunc_dv(dist_func,Nparams):
     in_axes_tuple = (0,) + (None,)*Nparams
     graddfdv = jax.vmap(jax.grad(dist_func),in_axes=in_axes_tuple,out_axes=0)
-    return jax.jit(lambda v,*_params : graddfdv(jnp.atleast_1d(v),*_params))
+    # return jax.jit(lambda v,*_params : graddfdv(jnp.atleast_1d(v),*_params))
+    return jax.jit(graddfdv)
 
 def create_dist_func_dict(dist_func,*_params):
     Nparams = len(_params)
     graddfdv = d_distfunc_dv(dist_func,Nparams)
-    dists = {'fi' : Partial(dist_func), 'dfi/dv' : Partial(graddfdv), 'fi_params' : [*_params]}
+    dists = {'fi' : Partial(dist_func), 'dfi/dv' : Partial(jax.jit(jax.grad(dist_func))), 'dfi/dv_vmap' : Partial(graddfdv), 'fi_params' : [*_params]}
     return dists
 
 def get_kw_vals(omg,omgL,sa,Z,Ai,ne):

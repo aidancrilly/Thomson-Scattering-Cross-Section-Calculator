@@ -3,6 +3,7 @@ import jax
 from .OTSconstants import *
 from .OTSplasma import *
 from .OTSutils import *
+from time import time
 
 #s(k,omega)
 #form factor for waves in thermal plasma

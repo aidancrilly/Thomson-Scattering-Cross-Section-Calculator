@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax.tree_util import Partial
 
 relative_tolerance = 1e-3
-absolute_tolerance = 1e-3
+absolute_tolerance = 0.0
 divmax = 16
 
 #########################################################################

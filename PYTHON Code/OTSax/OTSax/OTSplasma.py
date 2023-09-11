@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 from .OTSconstants import *
 from .tools.Faddeeva import *
-from .tools.CauchyPV import KellerWrobel_PV
+from .tools.CauchyPV import *
 
 #%%########################################################################
 #    plasma response integral [p106 Froula2011]
@@ -30,7 +30,10 @@ def plaZim(z):
 
 # Custom plasma dispersion function
 @jax.jit
-def custZprime(v, dfdv, f_params, maxv, integration_scale = 1.1):  
+def custZprime(v, dists, maxv, integration_scale = 1.1):  
+
+    dfdv = dists['dfi/dv']
+    f_params = dists['fi_params']
 
     # Adjust integration range
     v_scale = integration_scale*maxv
@@ -38,12 +41,12 @@ def custZprime(v, dfdv, f_params, maxv, integration_scale = 1.1):
 
     # Jitted by lax.scan
     def PV_calc(sum,tau):
-        y = KellerWrobel_PV(tau, dfdv, f_params, v_scale)
+        y = CutOutSingularity_w_Limit_PV(tau, dfdv, f_params, v_scale)
         sum += y
         return sum, y
     
     _,dWr = jax.lax.scan(PV_calc,jnp.array([0.0]),x)
-    dWi = -jnp.pi*dfdv(v,*f_params)
+    dWi = -jnp.pi*dists['dfi/dv_vmap'](v,*f_params)
 
     # Safety
     dWr = jnp.where(jnp.isnan(dWr), 0.0, dWr)
@@ -117,10 +120,10 @@ def chicust_i(kw_dict,dists):
     vel   = kw_dict['vel']/c
     vemax = jnp.max(jnp.abs(vel))
     ##################### numerical
-    Zpe = custZprime(vel, dists['dfi/dv'], dists['fi_params'], vemax)   
+    Zpi = custZprime(vel, dists, vemax)   
 
-    chiEre= (-(1.0/(c*k[:]/omgpi)**2))*(Zpe[0,:])  #me/mi
-    chiEim= (-(1.0/(c*k[:]/omgpi)**2))*(-1j*Zpe[1,:])  #me/mi 
+    chiEre= (-(1.0/(c*k[:]/omgpi)**2))*(Zpi[0,:])  #me/mi
+    chiEim= (-(1.0/(c*k[:]/omgpi)**2))*(-1j*Zpi[1,:])  #me/mi 
     return chiEre+chiEim
 
 #chi e
@@ -131,7 +134,7 @@ def chicust_e(kw_dict,dists):
     vel   = kw_dict['vel']/c
     vemax = jnp.max(jnp.abs(vel))
     ##################### numerical
-    Zpe = custZprime(vel, dists['dfe/dv'], dists['fe_params'], vemax)  
+    Zpe = custZprime(vel, dists, vemax)  
     
     chiEre= (-(1.0/(c*k[:]/omgpe)**2))*(Zpe[0,:]) 
     chiEim= (-(1.0/(c*k[:]/omgpe)**2))*(-1j*Zpe[1,:]) 

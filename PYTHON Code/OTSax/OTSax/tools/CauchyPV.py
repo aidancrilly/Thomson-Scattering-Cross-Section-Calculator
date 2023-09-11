@@ -2,7 +2,10 @@ import jax
 import jax.numpy as jnp
 from .adaptive_quad import quad
 
-def KellerWrobel_PV(tau, dfdv, f_params, v_scale):
+epsilon_tau = 1e-10
+
+@jax.jit
+def CutOutSingularity_w_Limit_PV(tau, dfdv, f_params, v_scale):
     """
     
     Calculates Cauchy princpal value of:
@@ -11,18 +14,96 @@ def KellerWrobel_PV(tau, dfdv, f_params, v_scale):
 
     See https://www.sciencedirect.com/science/article/pii/S0377042715004422?via%3Dihub
     
+    Equation 2.4, "subtracting out the singularity"
+
     """
 
+    @jax.jit
+    def f(x,v_scale,*_parameters):
+        v = x*v_scale
+        return jnp.reshape(dfdv(v,*_parameters), ())
+
+    dfdx = jax.grad(f,argnums=0)
+
+    @jax.jit
+    def g_integrand(x,tau,v_scale,*_parameters):
+        fx = f(x,v_scale,*_parameters)
+        ftau = f(tau,v_scale,*_parameters)
+        limit = dfdx(tau,v_scale,*_parameters)
+        g = jnp.where(jnp.abs(x-tau) > epsilon_tau, (fx-ftau)/(x-tau), limit)
+        return jnp.reshape(g, ())
+
+    I_tau = f(tau,v_scale,*f_params)*jnp.log((1.0-tau)/(1.0+tau))
+
+    integrand_params = [tau,v_scale,*f_params]
+
+    I_g = quad(g_integrand,-1.0,1.0,integrand_params)
+
+    return I_tau+I_g
+
+@jax.jit
+def CutOutSingularity_PV(tau, dfdv, f_params, v_scale):
+    """
+    
+    Calculates Cauchy princpal value of:
+
+    \int_{-1}^{+1} f(x)/(x-tau) dx
+
+    See https://www.sciencedirect.com/science/article/pii/S0377042715004422?via%3Dihub
+    
+    Equation 2.4, "subtracting out the singularity"
+
+    """
+
+    @jax.jit
     def f(x,v_scale,*_parameters):
         v = x*v_scale
         return dfdv(v,*_parameters)
 
+    @jax.jit
     def g_integrand(x,tau,v_scale,*_parameters):
         fx = f(x,v_scale,*_parameters)
         ftau = f(tau,v_scale,*_parameters)
         g = (fx-ftau)/(x-tau)
         return jnp.reshape(g, ())
 
+    I_tau = f(tau,v_scale,*f_params)*jnp.log((1.0-tau)/(1.0+tau))
+
+    integrand_params = [tau,v_scale,*f_params]
+
+    I_gp = quad(g_integrand,tau,1.0,integrand_params)
+    I_gm = quad(g_integrand,-1.0,tau,integrand_params)
+    I_g = I_gp+I_gm
+
+    return I_tau+I_g
+
+@jax.jit
+def KellerWrobel_PV(tau, dfdv, f_params, v_scale):
+    """
+    
+    Calculates Cauchy princpal value of:
+
+    \int_{-1}^{+1} f(x)/(x-tau) dx
+
+    See https://www.sciencedirect.com/science/article/pii/S0377042715004422?via%3Dihub
+
+    Equation 2.5
+    
+    """
+
+    @jax.jit
+    def f(x,v_scale,*_parameters):
+        v = x*v_scale
+        return dfdv(v,*_parameters)
+
+    @jax.jit
+    def g_integrand(x,tau,v_scale,*_parameters):
+        fx = f(x,v_scale,*_parameters)
+        ftau = f(tau,v_scale,*_parameters)
+        g = (fx-ftau)/(x-tau)
+        return jnp.reshape(g, ())
+
+    @jax.jit
     def h_integrand(x,tau,v_scale,*_parameters):
         ftaup = f(tau+x,v_scale,*_parameters)
         ftaum = f(tau-x,v_scale,*_parameters)
