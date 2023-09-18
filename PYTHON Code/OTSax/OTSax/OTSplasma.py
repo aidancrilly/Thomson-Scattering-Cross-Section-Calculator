@@ -32,8 +32,8 @@ def plaZim(z):
 @jax.jit
 def custZprime(v, dists, maxv, integration_scale = 1.1):  
 
-    dfdv = dists['dfi/dv']
-    f_params = dists['fi_params']
+    dfdv = dists['df/dv']
+    f_params = dists['f_params']
 
     # Adjust integration range
     v_scale = integration_scale*maxv
@@ -41,12 +41,12 @@ def custZprime(v, dists, maxv, integration_scale = 1.1):
 
     # Jitted by lax.scan
     def PV_calc(sum,tau):
-        y = CutOutSingularity_w_Limit_PV(tau, dfdv, f_params, v_scale)
+        y = KellerWrobel_PV(tau, dfdv, f_params, v_scale)
         sum += y
         return sum, y
     
     _,dWr = jax.lax.scan(PV_calc,jnp.array([0.0]),x)
-    dWi = -jnp.pi*dists['dfi/dv_vmap'](v,*f_params)
+    dWi = -jnp.pi*dists['df/dv_vmap'](v,*f_params)
 
     # Safety
     dWr = jnp.where(jnp.isnan(dWr), 0.0, dWr)
@@ -97,7 +97,7 @@ def chith_i(kw_dict,Te,Ti,Z,Ai,vi):
     k     = kw_dict['k']
     v     = kw_dict['vel']
     vte   = jnp.sqrt(Te/me)  #c
-    vti   = jnp.sqrt(Ti/(mproton*Ai)) #c
+    vti   = jnp.sqrt(Ti/(amu_eV*Ai)) #c
     kd    = omgpe/(vte*c)
     kkd   = k/kd
     xi    = (v-vi*c)/(c*vti*jnp.sqrt(2.0))

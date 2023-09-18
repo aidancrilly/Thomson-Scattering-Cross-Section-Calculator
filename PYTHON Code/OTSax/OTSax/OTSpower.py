@@ -3,71 +3,72 @@ import jax
 from .OTSconstants import *
 from .OTSplasma import *
 from .OTSutils import *
-from time import time
 
-#s(k,omega)
-#form factor for waves in thermal plasma
-#inputs:
-#    omg = wave frequency [rad/s]
-#    sa = scattering angle [deg]
-#    omgL = probe laser frequency [rad/s]
-#    Te = electron temperature [keV]
-#    Ti = ion temperature [keV]
-#    Z = ion charge = q/e
-#    Ai=ion protons + nuetrons 
-#    ne = electron density [cm^-3]
-#    ve=electron velocity [c]
-#    vi=ion velocity [c]
-@jax.jit
-def skw(omg,sa,omgL,Te,Ti,Z,Ai,ne,ve,vi):
-    kw_dict = get_kw_vals(omg,omgL,sa,Z,Ai,ne)
-    k = kw_dict['k']
-    v = kw_dict['vel']
+def calc_S_kw(laser_params,electron_params,multi_ion_params,number_of_ion_species):
+    """
     
-    chie  = chith_e(kw_dict,ve,Te)
-    chii  = chith_i(kw_dict,Te,Ti,Z,Ai,vi)
-    eps   = chie+chii+1.0
-    dispe = jnp.abs((1+chii)/eps)**2
-    dispi = jnp.abs((chie)/eps)**2
-
-    vte=jnp.sqrt(Te/me)  #c
-    vti=jnp.sqrt(Ti/(mproton*Ai)) #c
-    fe=jnp.sqrt(1.0/(2*jnp.pi*vte**2*c**2))*jnp.exp(-0.5*(v-ve*c)**2/(vte**2*c**2))
-    fi=jnp.sqrt(1.0/(2*jnp.pi*vti**2*c**2))*jnp.exp(-0.5*(v-vi*c)**2/(vti**2*c**2))
-
-    skwe=(2*jnp.pi/k)*dispe*fe
-    skwi=(2*jnp.pi*Z/k)*dispi*fi
-    return (skwe+skwi)
-
-#s(k,omega)
-#form factor for waves with custom ion distribution
-#inputs:
-#    omg = wave frequency [rad/s]
-#    sa = scattering angle [deg]
-#    omgL = probe laser frequency [rad/s]
-#    Z = ion charge = q/e
-#    Ai=ion protons + nuetrons 
-#    ne = electron density [cm^-3]
-#    ve=electron velocity [c]
-#    dist [1/c] distribution function of ions, at phase velocity omg/k
-@jax.jit
-def skwic(omg,sa,omgL,Te,Z,Ai,ne,ve,dists):
-    kw_dict = get_kw_vals(omg,omgL,sa,Z,Ai,ne)
+    laser_params
+    electron_params
+    multi_ion_params
+    number_of_ion_species
+    
+    """
+    kw_dict = get_laser_and_electron_kw_vals(laser_params,electron_params['ne'])
     k = kw_dict['k']
     v = kw_dict['vel']
 
-    vte=jnp.sqrt(Te/me)  #c
-    fe=jnp.sqrt(1.0/(2*jnp.pi*vte**2*c**2))*jnp.exp(-0.5*(v-ve*c)**2/(vte**2*c**2))
+    chie,fe = jax.lax.cond(electron_params['isMax'],
+                           calc_MaxElectron_chi_and_fe,
+                           calc_NonMaxElectron_chi_and_S_kw,
+                           kw_dict,electron_params)
+
+    def single_ion_susceptibility(ion_params):
+        ion_kw_dict = add_ion_kw_vals(kw_dict,ion_params['Z'],ion_params['Ai'])
+        chii = jax.lax.cond(ion_params['isMax'],
+                        lambda ion_kw_dict : chith_i(ion_kw_dict,electron_params['Te'],ion_params['Ti'],ion_params['Z'],ion_params['Ai'],ion_params['vi']),
+                        lambda ion_kw_dict : chicust_i(ion_kw_dict,ion_params['dists']),ion_kw_dict)
+        return ion_params['frac']*chii
     
-    chie = chith_e(kw_dict,ve,Te)
-    chii = chicust_i(kw_dict,dists)
-    
-    eps=chie+chii+1.0
-    dispe=jnp.abs((1+chii)/eps)**2
+    def single_ion_S_kw(ion_params):
+        fi = jax.lax.cond(ion_params['isMax'],
+                        lambda x : Maxwellian(x,ion_params['vi'],ion_params['Ti'],ion_params['Ai']*amu_eV)/c,
+                        lambda x : ion_params['dists']['f'](x,*ion_params['dists']['f_params'])/c, v/c)
+        
+        skwi=(2*jnp.pi*ion_params['Z']/kw_dict['k'])*dispi*ion_params['frac']*fi
+        return skwi
+
+    total_chii = jnp.zeros_like(k)
+    for i_ion in range(number_of_ion_species):
+        total_chii += single_ion_susceptibility(multi_ion_params[i_ion])
+
+    eps=chie+total_chii+1.0
+    dispe=jnp.abs((1+total_chii)/eps)**2
     dispi=jnp.abs((chie)/eps)**2
-    
-    fi=1.0*dists['fi'](v/c,*dists['fi_params'])/c
-    
+
     skwe=(2*jnp.pi/k)*dispe*fe
-    skwi=(2*jnp.pi*Z/k)*dispi*fi
-    return (skwe+skwi)
+    
+    total_skwi = jnp.zeros_like(k)
+    for i_ion in range(number_of_ion_species):
+        total_skwi += single_ion_S_kw(multi_ion_params[i_ion])
+
+    return (skwe+total_skwi)
+
+@jax.jit
+def calc_MaxElectron_chi_and_fe(kw_dict,electron_params):
+    v = kw_dict['k']
+
+    chie = chith_e(kw_dict,electron_params['ve'],electron_params['Te'])
+    fe = Maxwellian(v/c,electron_params['ve'],electron_params['Te'],me)/c
+
+    return chie,fe
+
+@jax.jit
+def calc_NonMaxElectron_chi_and_S_kw(kw_dict,electron_params):
+    v = kw_dict['k']
+
+    chie = chicust_e(kw_dict,electron_params['dists'])
+    fe = electron_params['dists']['f'](v/c,*electron_params['dists']['f_params'])/c
+
+    return chie,fe
+
+calc_S_kw = jax.jit(calc_S_kw,static_argnums=(3,))

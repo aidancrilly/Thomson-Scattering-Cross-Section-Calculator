@@ -12,6 +12,14 @@ from jax.scipy.special import erfc
 import jax.numpy as jnp
 
 @jit
+def voigt_profile(x,sigma,gamma):
+    sqrt2sigma = sigma*jnp.sqrt(2)
+    xprime = x/sqrt2sigma
+    y = gamma/sqrt2sigma
+    voigt = rewofz(xprime, y)/sqrt2sigma/jnp.sqrt(jnp.pi)
+    return voigt
+
+@jit
 def dawsn(z):
     return jnp.sqrt(jnp.pi)/2.0*imwofz(z,jnp.zeros_like(z))
 
