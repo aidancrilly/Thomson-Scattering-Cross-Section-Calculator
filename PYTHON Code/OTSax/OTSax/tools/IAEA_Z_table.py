@@ -81,8 +81,8 @@ class IaeaTable:
         ne = jnp.where(ne < self.ne[0] , self.ne[0], ne)
         ne = jnp.where(ne > self.ne[-1] , self.ne[-1], ne)
 
-        ix = jnp.clip(jnp.searchsorted(self.Te, Te, side="right"), 1, self.N_Te - 1)
-        iy = jnp.clip(jnp.searchsorted(self.ne, ne, side="right"), 1, self.N_ne - 1)
+        ix = jnp.clip(jnp.searchsorted(self.ne, ne, side="right"), 1, self.N_ne - 1)
+        iy = jnp.clip(jnp.searchsorted(self.Te, Te, side="right"), 1, self.N_Te - 1)
 
         # Using Wikipedia's notation (https://en.wikipedia.org/wiki/Bilinear_interpolation)
         z_11 = self.Z[ix - 1, iy - 1]
@@ -90,15 +90,15 @@ class IaeaTable:
         z_12 = self.Z[ix - 1, iy]
         z_22 = self.Z[ix, iy]
 
-        z_xy1 = (self.Te[ix] - Te) / (self.Te[ix] - self.Te[ix - 1]) * z_11 + (Te - self.Te[ix - 1]) / (
-            self.Te[ix] - self.Te[ix - 1]
+        z_xy1 = (self.ne[ix] - ne) / (self.ne[ix] - self.ne[ix - 1]) * z_11 + (ne - self.ne[ix - 1]) / (
+            self.ne[ix] - self.ne[ix - 1]
         ) * z_21
-        z_xy2 = (self.Te[ix] - Te) / (self.Te[ix] - self.Te[ix - 1]) * z_12 + (Te - self.Te[ix - 1]) / (
-            self.Te[ix] - self.Te[ix - 1]
+        z_xy2 = (self.ne[ix] - ne) / (self.ne[ix] - self.ne[ix - 1]) * z_12 + (ne - self.ne[ix - 1]) / (
+            self.ne[ix] - self.ne[ix - 1]
         ) * z_22
 
-        z = (self.ne[iy] - ne) / (self.ne[iy] - self.ne[iy - 1]) * z_xy1 + (ne - self.ne[iy - 1]) / (
-            self.ne[iy] - self.ne[iy - 1]
+        z = (self.Te[iy] - Te) / (self.Te[iy] - self.Te[iy - 1]) * z_xy1 + (Te - self.Te[iy - 1]) / (
+            self.Te[iy] - self.Te[iy - 1]
         ) * z_xy2
 
         return z
