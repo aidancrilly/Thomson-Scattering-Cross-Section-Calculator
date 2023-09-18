@@ -1,42 +1,50 @@
-# From exojax
+"""
+Code collected from Zaghoul and Ali's Algorithm 916 (https://dl.acm.org/doi/pdf/10.1145/2049673.2049679) 
+and ExoJax implementation (https://github.com/HajimeKawahara/exojax/blob/master/src/exojax/special/faddeeva.py)
 
-"""Faddeeva (wofz= w of z) functions (real and imag parts), an asymptotic form of wofz.
+Faddeeva (wofz= w of z) functions (real and imag parts)
 
-Note:
-   We adopt ncut=27 as the summation of n in Algorithm 916. For Sigma1, we use ncut=8 because higher order than 9 does not affect the results.
+Order of Algorithm 916 is defined by n_Algorithm916
+
 """
 
 from jax import jit
-from jax import custom_vjp
 from jax.scipy.special import erfc
 import jax.numpy as jnp
 
+n_Algorithm916 = 32
+
+an = 0.5*jnp.arange(1,n_Algorithm916+1)
+a2n2 = an**2
+
 @jit
 def voigt_profile(x,sigma,gamma):
-    sqrt2sigma = sigma*jnp.sqrt(2)
+    """
+    Voigt line shape function
+
+    Effectively rescaling of real part of Faddeeva
+    """
+    sqrt2sigma = sigma*jnp.sqrt(2.0)
     xprime = x/sqrt2sigma
-    y = gamma/sqrt2sigma
+    y = gamma/sqrt2sigma*jnp.ones_like(x)
     voigt = rewofz(xprime, y)/sqrt2sigma/jnp.sqrt(jnp.pi)
     return voigt
 
 @jit
 def dawsn(z):
+    """
+    Dawson's Integral - see https://mathworld.wolfram.com/DawsonsIntegral.html
+    
+    """
     return jnp.sqrt(jnp.pi)/2.0*imwofz(z,jnp.zeros_like(z))
-
-an = jnp.array([
-    0.5, 1., 1.5, 2., 2.5, 3., 3.5, 4., 4.5, 5., 5.5, 6., 6.5, 7., 7.5, 8.,
-    8.5, 9., 9.5, 10., 10.5, 11., 11.5, 12., 12.5, 13., 13.5
-])
-
-a2n2 = jnp.array([
-    0.25, 1., 2.25, 4., 6.25, 9., 12.25, 16., 20.25, 25., 30.25, 36., 42.25,
-    49., 56.25, 64., 72.25, 81., 90.25, 100., 110.25, 121., 132.25, 144.,
-    156.25, 169., 182.25
-])
 
 @jit
 def erfcx(x):
-    return jnp.exp(-x**2)*erfc(x)
+    """
+    Scaled Complementary Error Function
+    
+    """
+    return jnp.exp(x**2)*erfc(x)
 
 @jit
 def rewofz(x, y):
@@ -53,8 +61,7 @@ def rewofz(x, y):
     """
     xy = x * y
     exx = jnp.exp(-x * x)
-    f = exx * (erfcx(y) * jnp.cos(2.0 * xy) +
-               x * jnp.sin(xy) / jnp.pi * jnp.sinc(xy / jnp.pi))
+    f = exx * (erfcx(y) * jnp.cos(2.0 * xy) + x * jnp.sin(xy) / jnp.pi * jnp.sinc(xy / jnp.pi))
     y2 = y * y
     Sigma23 = jnp.sum(
         (jnp.exp(-(an[:,None] + x[None,:])**2) + jnp.exp(-(an[:,None] - x[None,:])**2)) / (a2n2[:,None] + y2[None,:]),axis=0)
@@ -88,86 +95,14 @@ def imwofz(x, y):
 
     return f
 
-
-@jit
-def asymptotic_wofz(x, y):
-    """Asymptotic representation of wofz (Faddeeva) function 1 for |z|**2 > 112 (for e = 10e-6)
-
-    See Zaghloul (2018) arxiv:1806.01656
-
-    Args:
-        x: real x
-        y: real y
-
-    Returns:
-         jnp.array (complex): wofz(x+iy)
-
-    """
-
-    z = x + y * (1j)
-    a = 1.0 / (2.0 * z * z)
-    q = (1j) / (z * jnp.sqrt(jnp.pi)) * (1.0 + a * (1.0 + a *
-                                                    (3.0 + a * 15.0)))
-    return q
-
-
-@custom_vjp
-def rewofzx(x, y):
-    """[VJP custom defined] Real part of wofz (Faddeeva) function based on
-    Algorithm 916.
-
-    We apply a=0.5 for Algorithm 916.
-
-    Args:
-        x: x < ncut/2
-        y:
-
-    Returns:
-        jnp.array: Real(wofz(x+iy))
-    """
-    xy = x * y
-    exx = jnp.exp(-x * x)
-    f = exx*erfcx(y)*jnp.cos(2.0*xy)+x*jnp.sin(xy) / \
-        jnp.pi*exx*jnp.sinc(xy/jnp.pi)
-    y2 = y * y
-    Sigma1 = faddeeva_sigma1(exx, y2)
-    Sigma23 = jnp.sum(
-        (jnp.exp(-(an + x)**2) + jnp.exp(-(an - x)**2)) / (a2n2 + y * y))
-
-    f = f + y / jnp.pi * (-jnp.cos(2.0 * xy) * Sigma1 + 0.5 * Sigma23)
-    return f
-
-
-def h_fwd(x, y):
-    hh = rewofzx(x, y)
-    return hh, (hh, imwofz(x, y), x, y)
-
-
-def h_bwd(res, g):
-    """backward.
-
-    Note:
-        V=Real(wofz), L=Imag(wofz)
-
-    Args:
-        res: res  from h_fwd
-        g: g
-
-    Returns:
-           jnp.array, jnp.array: g* partial_x h(x,y), g* partial_y h(x,y)
-    """
-    V, L, x, y = res
-    return (2.0 * (y * L - x * V) * g,
-            2.0 * (x * L + y * V) * g - 2.0 / jnp.sqrt(jnp.pi))
-
-
-rewofzx.defvjp(h_fwd, h_bwd)
-
-
 def faddeeva_sigma1(exx, y2):
-    Sigma1 = exx * (7.78800786e-01 / (0.25 + y2) + 3.67879450e-01 /
-                    (1. + y2) + 1.05399221e-01 / (2.25 + y2) + 1.83156393e-02 /
-                    (4. + y2) + 1.93045416e-03 / (6.25 + y2) + 1.23409802e-04 /
-                    (9. + y2) + 4.78511765e-06 /
-                    (12.25 + y2) + 1.12535176e-07 / (16. + y2))
+    """
+    
+    Summation 1 as defined in Algorithm 916
+
+    Used in both imaginary and real parts of Faddeeva
+    
+    """
+    summation = jnp.sum(jnp.exp(-a2n2[:,None])/(a2n2[:,None]+y2[None,:]),axis=0)
+    Sigma1 = exx * summation
     return Sigma1
