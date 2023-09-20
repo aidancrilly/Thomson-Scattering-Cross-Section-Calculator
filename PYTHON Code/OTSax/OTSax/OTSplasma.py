@@ -30,10 +30,9 @@ def plaZim(z):
 
 # Custom plasma dispersion function
 @jax.jit
-def custZprime(v, dists, maxv, integration_scale = 1.1):  
+def custZprime(v, dists, f_params, maxv, integration_scale = 1.1):  
 
     dfdv = dists['df/dv']
-    f_params = dists['f_params']
 
     # Adjust integration range
     v_scale = integration_scale*maxv
@@ -114,13 +113,13 @@ def chith_i(kw_dict,Te,Ti,Z,Ai,vi):
 #    kw_dict = dictionary of pre-computed scattering parameters
 #    dists = distributin functions  ####################################### todo label how
 @jax.jit
-def chicust_i(kw_dict,dists):
+def chicust_i(kw_dict,dists,f_params):
     omgpi = kw_dict['omgpi']
     k     = kw_dict['k']
     vel   = kw_dict['vel']/c
     vemax = jnp.max(jnp.abs(vel))
     ##################### numerical
-    Zpi = custZprime(vel, dists, vemax)   
+    Zpi = custZprime(vel, dists, f_params, vemax)   
 
     chiEre= (-(1.0/(c*k[:]/omgpi)**2))*(Zpi[0,:])  #me/mi
     chiEim= (-(1.0/(c*k[:]/omgpi)**2))*(-1j*Zpi[1,:])  #me/mi 
@@ -128,13 +127,13 @@ def chicust_i(kw_dict,dists):
 
 #chi e
 @jax.jit
-def chicust_e(kw_dict,dists):
+def chicust_e(kw_dict,dists,f_params):
     omgpe = kw_dict['omgpe']
     k     = kw_dict['k']
     vel   = kw_dict['vel']/c
     vemax = jnp.max(jnp.abs(vel))
     ##################### numerical
-    Zpe = custZprime(vel, dists, vemax)  
+    Zpe = custZprime(vel, dists, f_params, vemax)  
     
     chiEre= (-(1.0/(c*k[:]/omgpe)**2))*(Zpe[0,:]) 
     chiEim= (-(1.0/(c*k[:]/omgpe)**2))*(-1j*Zpe[1,:]) 

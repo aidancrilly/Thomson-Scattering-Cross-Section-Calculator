@@ -26,13 +26,13 @@ def calc_S_kw(laser_params,electron_params,multi_ion_params,number_of_ion_specie
         ion_kw_dict = add_ion_kw_vals(kw_dict,ion_params['Z'],ion_params['Ai'])
         chii = jax.lax.cond(ion_params['isMax'],
                         lambda ion_kw_dict : chith_i(ion_kw_dict,electron_params['Te'],ion_params['Ti'],ion_params['Z'],ion_params['Ai'],ion_params['vi']),
-                        lambda ion_kw_dict : chicust_i(ion_kw_dict,ion_params['dists']),ion_kw_dict)
+                        lambda ion_kw_dict : chicust_i(ion_kw_dict,ion_params['dists'],ion_params['dists_params']),ion_kw_dict)
         return ion_params['frac']*chii
     
     def single_ion_S_kw(ion_params):
         fi = jax.lax.cond(ion_params['isMax'],
                         lambda x : Maxwellian(x,ion_params['vi'],ion_params['Ti'],ion_params['Ai']*amu_eV)/c,
-                        lambda x : ion_params['dists']['f'](x,*ion_params['dists']['f_params'])/c, v/c)
+                        lambda x : ion_params['dists']['f'](x,*ion_params['dists_params'])/c, v/c)
         
         skwi=(2*jnp.pi*ion_params['Z']/kw_dict['k'])*dispi*ion_params['frac']*fi
         return skwi
@@ -66,8 +66,8 @@ def calc_MaxElectron_chi_and_fe(kw_dict,electron_params):
 def calc_NonMaxElectron_chi_and_S_kw(kw_dict,electron_params):
     v = kw_dict['k']
 
-    chie = chicust_e(kw_dict,electron_params['dists'])
-    fe = electron_params['dists']['f'](v/c,*electron_params['dists']['f_params'])/c
+    chie = chicust_e(kw_dict,electron_params['dists'],electron_params['dists_params'])
+    fe = electron_params['dists']['f'](v/c,*electron_params['dists_params'])/c
 
     return chie,fe
 
