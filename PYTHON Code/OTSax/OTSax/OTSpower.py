@@ -4,15 +4,16 @@ from .OTSconstants import *
 from .OTSplasma import *
 from .OTSutils import *
 
-def calc_S_kw(laser_params,electron_params,multi_ion_params,number_of_ion_species):
+def calc_S_kw(laser_params,electron_params,multi_ion_params):
     """
     
     laser_params
     electron_params
     multi_ion_params
-    number_of_ion_species
     
     """
+
+    number_of_ion_species = len(multi_ion_params)
     kw_dict = get_laser_and_electron_kw_vals(laser_params,electron_params['ne'])
     k = kw_dict['k']
     v = kw_dict['vel']
@@ -27,7 +28,7 @@ def calc_S_kw(laser_params,electron_params,multi_ion_params,number_of_ion_specie
         chii = jax.lax.cond(ion_params['isMax'],
                         lambda ion_kw_dict : chith_i(ion_kw_dict,electron_params['Te'],ion_params['Ti'],ion_params['Z'],ion_params['Ai'],ion_params['vi']),
                         lambda ion_kw_dict : chicust_i(ion_kw_dict,ion_params['dists'],ion_params['dists_params']),ion_kw_dict)
-        return ion_params['frac']*chii
+        return ion_params['Z']*ion_params['frac']*chii
     
     def single_ion_S_kw(ion_params):
         fi = jax.lax.cond(ion_params['isMax'],
@@ -38,8 +39,11 @@ def calc_S_kw(laser_params,electron_params,multi_ion_params,number_of_ion_specie
         return skwi
 
     total_chii = jnp.zeros_like(k)
+    Zbar = 0.0
     for i_ion in range(number_of_ion_species):
         total_chii += single_ion_susceptibility(multi_ion_params[i_ion])
+        Zbar += multi_ion_params[i_ion]['Z']*multi_ion_params[i_ion]['frac']
+    total_chii /= Zbar
 
     eps=chie+total_chii+1.0
     dispe=jnp.abs((1+total_chii)/eps)**2
