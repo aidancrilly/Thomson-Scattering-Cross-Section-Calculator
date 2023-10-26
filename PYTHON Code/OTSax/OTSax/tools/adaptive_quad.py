@@ -5,7 +5,7 @@ from jax.tree_util import Partial
 
 relative_tolerance = 1e-4
 absolute_tolerance = 0.0
-divmax = 32
+divmax = 128
 
 #########################################################################
 # Following Patrick Kidger in https://github.com/google/jax/issues/9014 #

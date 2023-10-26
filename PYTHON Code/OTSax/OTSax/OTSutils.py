@@ -43,7 +43,7 @@ def update_Maxwellian_ion_params(ion_params,electron_params,vs,Ts,fracs):
     for i_ion in range(len(ion_params)):
         ion_params[i_ion]['Z']  = ion_params[i_ion]['Ztab'](ne,Te)
         ion_params[i_ion]['vi'] = vs[i_ion]
-        ion_params[i_ion]['Ts'] = Ts[i_ion]
+        ion_params[i_ion]['Ti'] = Ts[i_ion]
         ion_params[i_ion]['frac'] = fracs[i_ion]
     return ion_params
 

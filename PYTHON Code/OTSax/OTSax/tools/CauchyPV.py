@@ -110,7 +110,7 @@ def KellerWrobel_PV(tau, dfdv, f_params, v_scale):
         h = (ftaup-ftaum)/x
         return jnp.reshape(h, ())
 
-    delta = jnp.where(tau < 0.0, 1.0+tau, 1.0-tau)
+    delta = 1-jnp.abs(tau)
     I_tau = f(tau,v_scale,*f_params)*jnp.log((1.0-tau)/(1.0+tau))
 
     integrand_params = [tau,v_scale,*f_params]
